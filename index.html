@@ -1,1 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Adobe Firefly API Tester</title>
+</head>
+<body>
+  <h1>Test Adobe Firefly</h1>
+  <form id="promptForm">
+    <input type="text" id="promptInput" placeholder="Enter prompt..." required />
+    <button type="submit">Generate</button>
+  </form>
+  <pre id="result"></pre>
+
+  <script>
+    document.getElementById("promptForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const prompt = document.getElementById("promptInput").value;
+
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+
+      const data = await res.json();
+      document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+    });
+  </script>
+</body>
+</html>
 
