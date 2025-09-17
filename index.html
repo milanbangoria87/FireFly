@@ -5,27 +5,54 @@
 </head>
 <body>
   <h1>Test Adobe Firefly</h1>
+
   <form id="promptForm">
-    <input type="text" id="promptInput" placeholder="Enter prompt..." required />
+    <label for="apiSelect">Select API:</label>
+    <select id="apiSelect" name="apiSelect">
+      <option value="image">Image API</option>
+      <option value="avatar">Avatar API</option>
+      <option value="video">Video API</option>
+    </select>
+    <br/><br/>
+
+    <label for="promptInput">Enter prompt:</label>
+    <input type="text" id="promptInput" name="promptInput" placeholder="Enter prompt..." required />
+    <br/><br/>
+
     <button type="submit">Generate</button>
   </form>
+
   <pre id="result"></pre>
 
   <script>
     document.getElementById("promptForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const prompt = document.getElementById("promptInput").value;
 
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
-      });
+      const prompt = document.getElementById("promptInput").value.trim();
+      const apiType = document.getElementById("apiSelect").value;
 
-      const data = await res.json();
-      document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+      if (!prompt) {
+        alert("Please enter a prompt!");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiType, prompt })
+        });
+
+        if (!res.ok) {
+          throw new Error("API request failed");
+        }
+
+        const data = await res.json();
+        document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+      } catch (error) {
+        document.getElementById("result").innerText = "Error: " + error.message;
+      }
     });
   </script>
 </body>
 </html>
-
