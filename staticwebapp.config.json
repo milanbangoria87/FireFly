@@ -1,6 +1,6 @@
 {
-  "navigationFallback": {
+  "navigationFallback": 
+  {
     "rewrite": "index.html"
   },
-  "appBuildCommand": ""
 }
