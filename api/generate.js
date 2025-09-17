@@ -13,7 +13,7 @@ module.exports = async function (context, req) {
 
   try {
     const response = await axios.post(
-      "https://firefly.adobe.io/api/your-endpoint", // 🔁 Replace with actual Adobe endpoint
+      "https://ims-na1.adobelogin.com/ims/token/v3", // 🔁 Replace with actual Adobe endpoint
       { prompt },
       {
         headers: {
