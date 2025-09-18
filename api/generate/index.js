@@ -1,151 +1,124 @@
 const fetch = require('node-fetch');
 
 module.exports = async function (context, req) {
-  try {
-    context.log("🔁 Function invoked");
+  context.log("🔁 Function invoked");
 
-    const { prompt, height, width, apiType } = req.body;
+  const clientId = process.env.FIREFLY_CLIENT_ID;
+  const clientSecret = process.env.FIREFLY_CLIENT_SECRET;
 
-    if (!prompt || !height || !width || !apiType) {
-      context.res = {
-        status: 400,
-        body: { error: "Missing required fields: prompt, height, width, or apiType" }
-      };
-      return;
-    }
+  // 1. Get access token
+  context.log("🔐 Requesting Adobe token...");
+  const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "client_credentials",
+      scope: "session"
+    })
+  });
 
-    if (apiType !== "video") {
-      context.res = {
-        status: 400,
-        body: { error: "Only 'video' API is implemented for now." }
-      };
-      return;
-    }
+  const tokenData = await tokenRes.json();
+  context.log("🎟️ Adobe token response:", tokenData);
 
-    // ✅ Hardcoded credentials — make sure these are the exact same as Postman
-    const clientId = 'd53bc6ef2dd3444ca99d8144e4abc23e';
-    const clientSecret = 'p8e-S4QHDD1hJyf-UEHK6L_MXx2BUCzhUhqq';
+  const accessToken = tokenData.access_token;
 
-    context.log("🔐 Requesting Adobe token...");
-
-    // ✅ Body as URL-encoded string, but using application/json as you mentioned
-    const params = new URLSearchParams();
-    params.append('client_id', clientId);
-    params.append('client_secret', clientSecret);
-    params.append('grant_type', 'client_credentials');
-    params.append('scope', 'session');
-    
-    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params
-    });
-
-const tokenData = await tokenRes.json();
-    context.log("🎟️ Adobe token response:", tokenData);
-
-    const accessToken = tokenData.access_token;
-
-    if (!accessToken) {
-      context.res = {
-        status: 500,
-        body: { error: "Failed to obtain access token", details: tokenData }
-      };
-      return;
-    }
-
-    context.log("✅ Token generated!");
-
-    // 🧪 Log token if you want (for debug only)
-    // context.log("Token:", accessToken);
-
-    // 🎬 Submit the video generation job
-    const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'x-api-key': clientId,
-        'Content-Type': 'application/json',
-        'x-model-version': 'video1_standard',
-        'Accept': '*/*'
-      },
-      body: JSON.stringify({
-        bitRateFactor: 18,
-        image: { conditions: [] },
-        prompt,
-        seeds: [Math.floor(Math.random() * 1000000000)],
-        sizes: [{ height: parseInt(height), width: parseInt(width) }],
-        videoSettings: {
-          cameraMotion: "camera pan left",
-          promptStyle: "anime",
-          shotAngle: "aerial shot",
-          shotSize: "close-up shot"
-        }
-      })
-    });
-
-    const job = await jobRes.json();
-    context.log("🎞️ Job submission response:", job);
-
-    const statusUrl = job.statusUrl;
-
-    if (!statusUrl) {
-      context.res = {
-        status: 500,
-        body: { error: "Job submission failed", details: job }
-      };
-      return;
-    }
-
-    context.log("⏳ Polling for video generation...");
-
-    let videoUrl = null;
-    for (let i = 0; i < 18; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-
-      const statusCheck = await fetch(statusUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'x-api-key': clientId,
-          'Accept': 'application/json'
-        }
-      });
-
-      const statusData = await statusCheck.json();
-      context.log(`⌛ Poll ${i + 1}:`, statusData.status);
-
-      if (statusData.status === "succeeded" && statusData.output?.uri) {
-        videoUrl = statusData.output.uri;
-        break;
-      }
-    }
-
-    if (videoUrl) {
-      context.res = {
-        status: 200,
-        body: {
-          message: "✅ Video generated successfully!",
-          videoUrl
-        }
-      };
-    } else {
-      context.res = {
-        status: 202,
-        body: {
-          message: "⏳ Video is still processing. Try again later.",
-          statusUrl
-        }
-      };
-    }
-
-  } catch (err) {
-    context.log("❌ ERROR:", err.message || err);
+  if (!accessToken) {
     context.res = {
       status: 500,
-      body: { error: err.message || "Internal Server Error" }
+      body: { error: "Failed to obtain access token", details: tokenData }
     };
+    return;
   }
+
+  context.log("✅ Token generated!");
+
+  // 2. Submit Firefly job
+  const generationRes = await fetch("https://firefly.adobe.io/v1/jobs", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "x-api-key": clientId
+    },
+    body: JSON.stringify({
+      // 🔧 Replace this with actual request body
+      prompt: "A glowing orb of energy",
+      params: {
+        type: "video",
+        duration: 3,
+        aspect_ratio: "1:1"
+      }
+    })
+  });
+
+  const generationData = await generationRes.json();
+  context.log("🎞️ Job submission response:", generationData);
+
+  const { jobId, statusUrl } = generationData;
+
+  if (!statusUrl) {
+    context.res = {
+      status: 500,
+      body: { error: "Failed to submit Firefly job", details: generationData }
+    };
+    return;
+  }
+
+  // 3. Poll for status (until succeeded or failed)
+  context.log("⏳ Polling for video generation...");
+
+  let pollResult;
+  let attempts = 0;
+  const maxAttempts = 50;
+  const delay = 5000;
+
+  while (attempts < maxAttempts) {
+    const statusRes = await fetch(statusUrl, {
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "x-api-key": clientId
+      }
+    });
+
+    const statusData = await statusRes.json();
+    context.log(`⌛ Poll ${attempts + 1}:`, statusData.status);
+
+    if (statusData.status === "succeeded" || statusData.status === "failed") {
+      pollResult = statusData;
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+    attempts++;
+  }
+
+  if (!pollResult || pollResult.status !== "succeeded") {
+    context.res = {
+      status: 500,
+      body: {
+        error: "Video generation failed or timed out",
+        finalStatus: pollResult?.status || "unknown"
+      }
+    };
+    return;
+  }
+
+  // ✅ Return final video URL
+  const videoUrl = pollResult.result.outputs?.[0]?.video?.url;
+
+  context.res = {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: {
+      message: "✅ Video generated successfully!",
+      jobId: pollResult.jobId,
+      videoUrl: videoUrl
+    }
+  };
 };
