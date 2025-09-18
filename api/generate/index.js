@@ -4,7 +4,7 @@ module.exports = async function (context, req) {
   context.log("🔁 Function invoked");
 
   const clientId = process.env.FIREFLY_CLIENT_ID;
-  const clientSecret = process.env.FIREFLY_CLIENT_SECRET;
+  const clientSecret = process.env.FIREFLY_SECRET;
 
   // 1. Get access token
   context.log("🔐 Requesting Adobe token...");
