@@ -35,11 +35,11 @@ module.exports = async function (context, req) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: "client_credentials",
-        scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
+        scope: "session"
       })
     });
 
