@@ -29,20 +29,21 @@ module.exports = async function (context, req) {
     context.log("🔐 Requesting Adobe token...");
 
     // ✅ Body as URL-encoded string, but using application/json as you mentioned
+    const params = new URLSearchParams();
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
+    params.append('grant_type', 'client_credentials');
+    params.append('scope', 'session');
+    
     const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: "client_credentials",
-        scope: "session"
-      })
+      body: params
     });
 
-    const tokenData = await tokenRes.json();
+const tokenData = await tokenRes.json();
     context.log("🎟️ Adobe token response:", tokenData);
 
     const accessToken = tokenData.access_token;
