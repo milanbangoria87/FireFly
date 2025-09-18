@@ -11,7 +11,6 @@ module.exports = async function (context, req) {
     return;
   }
 
-  // 1. Get Adobe credentials from environment
   const clientId = process.env.FIREFLY_CLIENT_ID;
   const clientSecret = process.env.FIREFLY_SECRET;
 
@@ -24,8 +23,8 @@ module.exports = async function (context, req) {
   }
 
   try {
-    // 2. Get access token from Adobe
-    context.log("Fetching Adobe token...");
+    // Step 1: Get token
+    context.log("🔐 Getting Adobe token...");
     const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -36,12 +35,28 @@ module.exports = async function (context, req) {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      throw new Error("Token fetch failed: " + JSON.stringify(tokenData));
+      throw new Error("Failed to get token: " + JSON.stringify(tokenData));
     }
 
-    context.log("Token generated!");
+    context.log("✅ Token received!");
 
-    // 3. Prepare request to /videos/generate
+    // Step 2: Submit video generation request
+    const payload = {
+      bitRateFactor: 18,
+      image: { conditions: [] },
+      prompt,
+      seeds: [Math.floor(Math.random() * 1000000000)],
+      sizes: [{ height, width }],
+      videoSettings: {
+        cameraMotion: "camera pan left",
+        promptStyle: "anime",
+        shotAngle: "aerial shot",
+        shotSize: "close-up shot"
+      }
+    };
+
+    context.log("📤 Submitting video generation job...");
+
     const generateRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
       method: 'POST',
       headers: {
@@ -51,37 +66,25 @@ module.exports = async function (context, req) {
         'x-model-version': 'video1_standard',
         'Accept': '*/*'
       },
-      body: JSON.stringify({
-        bitRateFactor: 18,
-        image: { conditions: [] },
-        prompt,
-        seeds: [Math.floor(Math.random() * 1000000000)],
-        sizes: [{ height, width }],
-        videoSettings: {
-          cameraMotion: "camera pan left",
-          promptStyle: "anime",
-          shotAngle: "aerial shot",
-          shotSize: "close-up shot"
-        }
-      })
+      body: JSON.stringify(payload)
     });
 
     const job = await generateRes.json();
     const statusUrl = job.statusUrl;
 
     if (!statusUrl) {
-      throw new Error("Job submission failed: " + JSON.stringify(job));
+      throw new Error("Video generation job submission failed: " + JSON.stringify(job));
     }
 
-    context.log("Video job submitted. Polling...");
+    context.log("🕐 Job submitted. Polling status...");
 
-    // 4. Poll status endpoint until ready (max 90s)
+    // Step 3: Poll for job completion
     let attempts = 0;
     let videoUrl = null;
 
-    while (attempts < 18) { // ~90 seconds (18 x 5s)
+    while (attempts < 18) {
       await new Promise(resolve => setTimeout(resolve, 5000));
-      const statusCheck = await fetch(statusUrl, {
+      const statusRes = await fetch(statusUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -90,8 +93,8 @@ module.exports = async function (context, req) {
         }
       });
 
-      const statusData = await statusCheck.json();
-      context.log(`Status Check ${attempts + 1}:`, statusData.status);
+      const statusData = await statusRes.json();
+      context.log(`🔁 Attempt ${attempts + 1}: Status = ${statusData.status}`);
 
       if (statusData.status === "succeeded" && statusData.output && statusData.output.uri) {
         videoUrl = statusData.output.uri;
@@ -101,11 +104,12 @@ module.exports = async function (context, req) {
       attempts++;
     }
 
+    // Step 4: Respond
     if (videoUrl) {
       context.res = {
         status: 200,
         body: {
-          message: "Video generated successfully!",
+          message: "🎉 Video generated!",
           videoUrl
         }
       };
@@ -113,25 +117,18 @@ module.exports = async function (context, req) {
       context.res = {
         status: 202,
         body: {
-          message: "Video still processing, try again later.",
+          message: "⌛ Video is still processing. Try again later.",
           statusUrl
         }
       };
     }
 
-else {
-      context.res = {
-        status: 500,
-          headers: { 'Content-Type': 'application/json' },
-  body: { error: err.message || "Unexpected server error" }
-      };
-    }
-    
   } catch (err) {
-    context.log("Error:", err);
+    context.log("❌ Error:", err.message || err);
     context.res = {
       status: 500,
-      body: { error: err.message }
+      headers: { 'Content-Type': 'application/json' },
+      body: { error: err.message || "Unexpected server error" }
     };
   }
 };
