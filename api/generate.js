@@ -119,6 +119,14 @@ module.exports = async function (context, req) {
       };
     }
 
+else {
+      context.res = {
+        status: 500,
+          headers: { 'Content-Type': 'application/json' },
+  body: { error: err.message || "Unexpected server error" }
+      };
+    }
+    
   } catch (err) {
     context.log("Error:", err);
     context.res = {
