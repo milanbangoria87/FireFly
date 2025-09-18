@@ -11,24 +11,25 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const clientId = process.env.FIREFLY_CLIENT_ID;
-  const clientSecret = process.env.FIREFLY_SECRET;
+ const clientId = process.env.FIREFLY_CLIENT_ID;
+const clientSecret = process.env.FIREFLY_SECRET;
 
-  if (!clientId || !clientSecret) {
-    context.res = {
-      status: 500,
-      body: { error: "Missing Adobe credentials in environment variables." }
-    };
-    return;
-  }
+if (!clientId || !clientSecret) {
+  context.log("Missing client ID or secret");
+  context.res = {
+    status: 500,
+    body: { error: "Missing Adobe credentials in environment variables." }
+  };
+  return;
+}
 
-  try {
-    // 1. Get Adobe token
-    context.log("Fetching Adobe token...");
-   const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+context.log("Fetching Adobe token...");
+const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
     client_id: clientId,
     client_secret: clientSecret,
     grant_type: "client_credentials",
@@ -36,14 +37,14 @@ module.exports = async function (context, req) {
   })
 });
 
-    const tokenData = await tokenRes.json();
-    context.log("Adobe token response:", tokenData);
-    const accessToken = tokenData.access_token;
+const tokenData = await tokenRes.json();
+context.log("Adobe token response:", tokenData);
 
-    if (!accessToken) {
-      throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
-    }
+const accessToken = tokenData.access_token;
 
+if (!accessToken) {
+  throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
+}
     context.log("Token generated!");
 
     // 2. Submit video generation job
