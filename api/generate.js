@@ -14,6 +14,9 @@ module.exports = async function (context, req) {
   const clientId = process.env.FIREFLY_CLIENT_ID;
   const clientSecret = process.env.FIREFLY_SECRET;
 
+  context.log("Client ID:", clientId ? "[FOUND]" : "[NOT FOUND]");
+  context.log("Client Secret:", clientSecret ? "[FOUND]" : "[NOT FOUND]");
+
   if (!clientId || !clientSecret) {
     context.res = {
       status: 500,
