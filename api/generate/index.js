@@ -1,79 +1,60 @@
 const fetch = require('node-fetch');
-const querystring = require('querystring');
 
 module.exports = async function (context, req) {
-  const { prompt, height, width, apiType } = req.body;
-
-  if (apiType !== "video") {
-    context.res = {
-      status: 400,
-      body: { error: "Only 'video' API is implemented in backend for now." }
-    };
-    return;
-  }
-
-  const clientId = process.env.FIREFLY_CLIENT_ID;
-  const clientSecret = process.env.FIREFLY_SECRET;
-
-  if (!clientId || !clientSecret) {
-    context.log("Missing client ID or secret");
-    context.res = {
-      status: 500,
-      body: { error: "Missing Adobe credentials in environment variables." }
-    };
-    return;
-  }
+  context.log("🚀 Function started");
 
   try {
+    const { prompt, height, width, apiType } = req.body || {};
+    context.log("📝 Request Body:", req.body);
+
+    if (apiType !== "video") {
+      context.log("❌ Unsupported apiType:", apiType);
+      context.res = {
+        status: 400,
+        body: { error: "Only 'video' API is implemented in backend for now." }
+      };
+      return;
+    }
+
+    const clientId = process.env.FIREFLY_CLIENT_ID;
+    const clientSecret = process.env.FIREFLY_SECRET;
+
+    if (!clientId || !clientSecret) {
+      context.log("❌ Missing client ID or secret");
+      context.res = {
+        status: 500,
+        body: { error: "Missing Adobe credentials in environment variables." }
+      };
+      return;
+    }
+
+    // 1. Get Adobe access token
     context.log("🔐 Generating token...");
-
-    // Adobe expects x-www-form-urlencoded body, not JSON
-    const tokenBody = querystring.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: "client_credentials",
-      scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
-    });
-
     const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/json'
       },
-      body: tokenBody
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+        scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
+      })
     });
 
-    const rawTokenResponse = await tokenRes.text();
-    context.log("Raw Adobe token response:", rawTokenResponse);
-
-    let tokenData;
-    try {
-      tokenData = JSON.parse(rawTokenResponse);
-    } catch (e) {
-      context.log("Failed to parse Adobe token JSON:", e.message);
-      context.res = {
-        status: 500,
-        body: { error: "Adobe token response is invalid JSON" }
-      };
-      return;
-    }
+    const tokenData = await tokenRes.json();
+    context.log("🎟️ Raw Adobe token response:", tokenData);
 
     const accessToken = tokenData.access_token;
-
     if (!accessToken) {
-      context.log("Failed to get access token:", rawTokenResponse);
-      context.res = {
-        status: 500,
-        body: { error: "Failed to get access token from Adobe" }
-      };
-      return;
+      throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
     }
 
-    context.log("✅ Token generated!");
+    context.log("✅ Token acquired");
 
-    // Submit video generation job
+    // 2. Submit job
     context.log("🎬 Submitting video generation job...");
-
     const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
       method: 'POST',
       headers: {
@@ -98,38 +79,21 @@ module.exports = async function (context, req) {
       })
     });
 
-    const rawJobResponse = await jobRes.text();
-    context.log("Raw video job submission response:", rawJobResponse);
-
-    let job;
-    try {
-      job = JSON.parse(rawJobResponse);
-    } catch (e) {
-      context.log("Failed to parse video job JSON:", e.message);
-      context.res = {
-        status: 500,
-        body: { error: "Video job response is invalid JSON" }
-      };
-      return;
-    }
+    const job = await jobRes.json();
+    context.log("📦 Job Response:", job);
 
     const statusUrl = job.statusUrl;
-
     if (!statusUrl) {
-      context.log("Video job submission failed:", rawJobResponse);
-      context.res = {
-        status: 500,
-        body: { error: "Video job submission failed" }
-      };
-      return;
+      throw new Error("Missing statusUrl from job response: " + JSON.stringify(job));
     }
 
-    context.log("🎬 Video job submitted. Polling for completion...");
+    context.log("⏳ Polling status URL:", statusUrl);
 
-    // Polling for completion
+    // 3. Polling for video generation
     let videoUrl = null;
     for (let i = 0; i < 18; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
+      context.log(`🔁 Poll attempt ${i + 1}`);
+      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5s
 
       const statusCheck = await fetch(statusUrl, {
         method: 'POST',
@@ -140,18 +104,8 @@ module.exports = async function (context, req) {
         }
       });
 
-      const rawStatusResponse = await statusCheck.text();
-      context.log(`Raw status response [attempt ${i + 1}]:`, rawStatusResponse);
-
-      let statusData;
-      try {
-        statusData = JSON.parse(rawStatusResponse);
-      } catch (e) {
-        context.log("Failed to parse status JSON:", e.message);
-        continue; // skip this iteration and poll again
-      }
-
-      context.log(`Status attempt ${i + 1}:`, statusData.status);
+      const statusData = await statusCheck.json();
+      context.log(`📡 Status Check ${i + 1}:`, statusData);
 
       if (statusData.status === "succeeded" && statusData.output && statusData.output.uri) {
         videoUrl = statusData.output.uri;
@@ -160,6 +114,7 @@ module.exports = async function (context, req) {
     }
 
     if (videoUrl) {
+      context.log("✅ Video URL:", videoUrl);
       context.res = {
         status: 200,
         body: {
@@ -168,6 +123,7 @@ module.exports = async function (context, req) {
         }
       };
     } else {
+      context.log("⏳ Video still processing.");
       context.res = {
         status: 202,
         body: {
@@ -178,7 +134,7 @@ module.exports = async function (context, req) {
     }
 
   } catch (err) {
-    context.log("ERROR:", err.message);
+    context.log("❗ERROR:", err.message);
     context.res = {
       status: 500,
       body: { error: err.message || "Internal Server Error" }
