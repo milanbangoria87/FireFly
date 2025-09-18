@@ -11,40 +11,43 @@ module.exports = async function (context, req) {
     return;
   }
 
- const clientId = process.env.FIREFLY_CLIENT_ID;
-const clientSecret = process.env.FIREFLY_SECRET;
+  const clientId = process.env.FIREFLY_CLIENT_ID;
+  const clientSecret = process.env.FIREFLY_SECRET;
 
-if (!clientId || !clientSecret) {
-  context.log("Missing client ID or secret");
-  context.res = {
-    status: 500,
-    body: { error: "Missing Adobe credentials in environment variables." }
-  };
-  return;
-}
+  if (!clientId || !clientSecret) {
+    context.log("Missing client ID or secret");
+    context.res = {
+      status: 500,
+      body: { error: "Missing Adobe credentials in environment variables." }
+    };
+    return;
+  }
 
-context.log("Fetching Adobe token...");
-const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: "client_credentials",
-    scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
-  })
-});
+  try {
+    // 1. Get Adobe access token
+    context.log("Fetching Adobe token...");
+    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials",
+        scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
+      })
+    });
 
-const tokenData = await tokenRes.json();
-context.log("Adobe token response:", tokenData);
+    const tokenData = await tokenRes.json();
+    context.log("Adobe token response:", tokenData);
 
-const accessToken = tokenData.access_token;
+    const accessToken = tokenData.access_token;
 
-if (!accessToken) {
-  throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
-}
+    if (!accessToken) {
+      throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
+    }
+
     context.log("Token generated!");
 
     // 2. Submit video generation job
@@ -84,7 +87,7 @@ if (!accessToken) {
     // 3. Polling for completion
     let videoUrl = null;
     for (let i = 0; i < 18; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 sec wait
+      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
       const statusCheck = await fetch(statusUrl, {
         method: 'POST',
         headers: {
