@@ -14,9 +14,6 @@ module.exports = async function (context, req) {
   const clientId = process.env.FIREFLY_CLIENT_ID;
   const clientSecret = process.env.FIREFLY_SECRET;
 
-  context.log("Client ID:", clientId ? "[FOUND]" : "[NOT FOUND]");
-  context.log("Client Secret:", clientSecret ? "[FOUND]" : "[NOT FOUND]");
-
   if (!clientId || !clientSecret) {
     context.res = {
       status: 500,
@@ -26,48 +23,25 @@ module.exports = async function (context, req) {
   }
 
   try {
-    // Step 1: Get token
-    context.log("🔐 Getting Adobe token...");
-  //  const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-  //    method: 'POST',
-  //    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  //    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
-  //  });
+    // 1. Get Adobe token
+    context.log("Fetching Adobe token...");
+    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
+    });
 
-  //  const tokenData = await tokenRes.json();
-  //  const accessToken = tokenData.access_token;
-const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
-});
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
 
-const tokenData = await tokenRes.json();
-context.log("Adobe Token Response:", tokenData);
     if (!accessToken) {
-      throw new Error("Failed to get token: " + JSON.stringify(tokenData));
+      throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
     }
 
-    context.log("✅ Token received!");
+    context.log("Token generated!");
 
-    // Step 2: Submit video generation request
-    const payload = {
-      bitRateFactor: 18,
-      image: { conditions: [] },
-      prompt,
-      seeds: [Math.floor(Math.random() * 1000000000)],
-      sizes: [{ height, width }],
-      videoSettings: {
-        cameraMotion: "camera pan left",
-        promptStyle: "anime",
-        shotAngle: "aerial shot",
-        shotSize: "close-up shot"
-      }
-    };
-
-    context.log("📤 Submitting video generation job...");
-
-    const generateRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
+    // 2. Submit video generation job
+    const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -76,25 +50,35 @@ context.log("Adobe Token Response:", tokenData);
         'x-model-version': 'video1_standard',
         'Accept': '*/*'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        bitRateFactor: 18,
+        image: { conditions: [] },
+        prompt,
+        seeds: [Math.floor(Math.random() * 1000000000)],
+        sizes: [{ height: parseInt(height), width: parseInt(width) }],
+        videoSettings: {
+          cameraMotion: "camera pan left",
+          promptStyle: "anime",
+          shotAngle: "aerial shot",
+          shotSize: "close-up shot"
+        }
+      })
     });
 
-    const job = await generateRes.json();
+    const job = await jobRes.json();
     const statusUrl = job.statusUrl;
 
     if (!statusUrl) {
-      throw new Error("Video generation job submission failed: " + JSON.stringify(job));
+      throw new Error("Video job submission failed: " + JSON.stringify(job));
     }
 
-    context.log("🕐 Job submitted. Polling status...");
+    context.log("Video job submitted. Polling...");
 
-    // Step 3: Poll for job completion
-    let attempts = 0;
+    // 3. Polling for completion
     let videoUrl = null;
-
-    while (attempts < 18) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      const statusRes = await fetch(statusUrl, {
+    for (let i = 0; i < 18; i++) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 sec wait
+      const statusCheck = await fetch(statusUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -103,23 +87,20 @@ context.log("Adobe Token Response:", tokenData);
         }
       });
 
-      const statusData = await statusRes.json();
-      context.log(`🔁 Attempt ${attempts + 1}: Status = ${statusData.status}`);
+      const statusData = await statusCheck.json();
+      context.log(`Status ${i + 1}:`, statusData.status);
 
       if (statusData.status === "succeeded" && statusData.output && statusData.output.uri) {
         videoUrl = statusData.output.uri;
         break;
       }
-
-      attempts++;
     }
 
-    // Step 4: Respond
     if (videoUrl) {
       context.res = {
         status: 200,
         body: {
-          message: "🎉 Video generated!",
+          message: "Video generated successfully!",
           videoUrl
         }
       };
@@ -127,18 +108,17 @@ context.log("Adobe Token Response:", tokenData);
       context.res = {
         status: 202,
         body: {
-          message: "⌛ Video is still processing. Try again later.",
+          message: "Video is still processing. Try again later.",
           statusUrl
         }
       };
     }
 
   } catch (err) {
-    context.log("❌ Error:", err.message || err);
+    context.log("ERROR:", err.message);
     context.res = {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: { error: err.message || "Unexpected server error" }
+      body: { error: err.message || "Internal Server Error" }
     };
   }
 };
