@@ -22,16 +22,18 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // 🔐 Hardcoded Adobe credentials
+    // ✅ Hardcoded credentials — make sure these are the exact same as Postman
     const clientId = 'd53bc6ef2dd3444ca99d8144e4abc23e';
     const clientSecret = 'p8e-S4QHDD1hJyf-UEHK6L_MXx2BUCzhUhqq';
 
     context.log("🔐 Requesting Adobe token...");
 
-    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', 
-    {
+    // ✅ Body as URL-encoded string, but using application/json as you mentioned
+    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
@@ -54,6 +56,9 @@ module.exports = async function (context, req) {
     }
 
     context.log("✅ Token generated!");
+
+    // 🧪 Log token if you want (for debug only)
+    // context.log("Token:", accessToken);
 
     // 🎬 Submit the video generation job
     const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
@@ -97,7 +102,7 @@ module.exports = async function (context, req) {
 
     let videoUrl = null;
     for (let i = 0; i < 18; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
       const statusCheck = await fetch(statusUrl, {
         method: 'POST',
