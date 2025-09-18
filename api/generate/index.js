@@ -28,15 +28,22 @@ module.exports = async function (context, req) {
   try {
     // Step 1: Get token
     context.log("🔐 Getting Adobe token...");
-    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
-    });
+  //  const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+  //    method: 'POST',
+  //    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  //    body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
+  //  });
 
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
+  //  const tokenData = await tokenRes.json();
+  //  const accessToken = tokenData.access_token;
+const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
+});
 
+const tokenData = await tokenRes.json();
+context.log("Adobe Token Response:", tokenData);
     if (!accessToken) {
       throw new Error("Failed to get token: " + JSON.stringify(tokenData));
     }
