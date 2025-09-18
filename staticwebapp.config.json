@@ -1,6 +1,8 @@
 {
-  "navigationFallback": 
-  {
+  "navigationFallback": {
     "rewrite": "index.html"
+  },
+  "api": {
+    "prefix": "/api"
   }
 }
