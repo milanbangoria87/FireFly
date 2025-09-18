@@ -1,42 +1,45 @@
 const fetch = require('node-fetch');
+const querystring = require('querystring');
 
 module.exports = async function (context, req) {
-  const { prompt, height, width, apiType } = req.body;
-
-  if (apiType !== "video") {
-    context.res = {
-      status: 400,
-      body: { error: "Only 'video' API is implemented in backend for now." }
-    };
-    return;
-  }
-
-  const clientId = process.env.FIREFLY_CLIENT_ID;
-  const clientSecret = process.env.FIREFLY_SECRET;
-
-  if (!clientId || !clientSecret) {
-    context.log("Missing client ID or secret");
-    context.res = {
-      status: 500,
-      body: { error: "Missing Adobe credentials in environment variables." }
-    };
-    return;
-  }
-
   try {
-    // 1. Get Adobe access token
+    const { prompt, height, width, apiType } = req.body;
+
+    if (apiType !== "video") {
+      context.res = {
+        status: 400,
+        body: { error: "Only 'video' API is implemented in backend for now." }
+      };
+      return;
+    }
+
+    const clientId = process.env.FIREFLY_CLIENT_ID;
+    const clientSecret = process.env.FIREFLY_SECRET;
+
+    if (!clientId || !clientSecret) {
+      context.log("Missing client ID or secret");
+      context.res = {
+        status: 500,
+        body: { error: "Missing Adobe credentials in environment variables." }
+      };
+      return;
+    }
+
     context.log("Fetching Adobe token...");
+
+    const tokenBody = querystring.stringify({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "client_credentials",
+      scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
+    });
+
     const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: "client_credentials",
-        scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
-      })
+      body: tokenBody
     });
 
     const tokenData = await tokenRes.json();
@@ -50,7 +53,7 @@ module.exports = async function (context, req) {
 
     context.log("Token generated!");
 
-    // 2. Submit video generation job
+    // Submit video generation job
     const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
       method: 'POST',
       headers: {
@@ -84,10 +87,11 @@ module.exports = async function (context, req) {
 
     context.log("Video job submitted. Polling...");
 
-    // 3. Polling for completion
+    // Poll for completion
     let videoUrl = null;
     for (let i = 0; i < 18; i++) {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5 seconds
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 sec wait
+
       const statusCheck = await fetch(statusUrl, {
         method: 'POST',
         headers: {
