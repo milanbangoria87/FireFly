@@ -104,9 +104,18 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ apiType, prompt, height, width })
-        });
-
-        const data = await response.json();
+          });
+        
+        let data;
+        try {
+          data = await response.json();
+        } catch (err) {
+          throw new Error("Invalid response from server. Expected JSON.");
+        }
+        
+        if (!response.ok) {
+          throw new Error(data?.error || "Something went wrong on server.");
+        }
 
         document.getElementById("status").innerText = "✅ Completed!";
         document.getElementById("result").innerText = JSON.stringify(data, null, 2);
