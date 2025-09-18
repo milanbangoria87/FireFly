@@ -1,19 +1,21 @@
 const fetch = require('node-fetch');
-const userPrompt = req.body?.prompt;
-const height = parseInt(req.body?.height) || 720;
-const width = parseInt(req.body?.width) || 720;
-
-if (!userPrompt) {
-  context.res = {
-    status: 400,
-    body: { error: "Missing prompt." }
-  };
-  return;
-}
 
 
 module.exports = async function (context, req) {
   context.log("🔁 Function invoked");
+
+  const userPrompt = req.body?.prompt;
+  const height = parseInt(req.body?.height);
+  const width = parseInt(req.body?.width);
+  
+  if (!userPrompt) {
+    context.res = {
+      status: 400,
+      body: { error: "Missing prompt." }
+    };
+    return;
+  }
+  context.log("📥 Received input:", { userPrompt, height, width });
 
   const clientId = process.env.FIREFLY_CLIENT_ID;
   const clientSecret = process.env.FIREFLY_SECRET;
@@ -55,7 +57,7 @@ module.exports = async function (context, req) {
       "Authorization": `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       "x-api-key": clientId,
-      "x-model-version" : video1_standard
+      "x-model-version" : "video1_standard"
     },
    body: JSON.stringify({
     bitRateFactor: 18,
