@@ -1,4 +1,16 @@
 const fetch = require('node-fetch');
+const userPrompt = req.body?.prompt;
+const height = parseInt(req.body?.height) || 720;
+const width = parseInt(req.body?.width) || 720;
+
+if (!userPrompt) {
+  context.res = {
+    status: 400,
+    body: { error: "Missing prompt." }
+  };
+  return;
+}
+
 
 module.exports = async function (context, req) {
   context.log("🔁 Function invoked");
@@ -37,21 +49,34 @@ module.exports = async function (context, req) {
   context.log("✅ Token generated!");
 
   // 2. Submit Firefly job
-  const generationRes = await fetch("https://firefly.adobe.io/v1/jobs", {
+  const generationRes = await fetch("https://firefly-api.adobe.io/v3/videos/generate", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${accessToken}`,
       "Content-Type": "application/json",
-      "x-api-key": clientId
+      "x-api-key": clientId,
+      "x-model-version" : video1_standard
     },
-    body: JSON.stringify({
-      // 🔧 Replace this with actual request body
-      prompt: "A glowing orb of energy",
-      params: {
-        type: "video",
-        duration: 3,
-        aspect_ratio: "1:1"
+   body: JSON.stringify({
+    bitRateFactor: 18,
+    image: {
+      conditions: []
+    },
+    prompt: userPrompt,
+    seeds: [
+      1842533538
+    ],
+    sizes: [
+      {
+        height, width
       }
+    ],
+    videoSettings: {
+      cameraMotion: "camera pan left",
+      promptStyle: "anime",
+      shotAngle: "aerial shot",
+      shotSize: "close-up shot"
+    }
     })
   });
 
