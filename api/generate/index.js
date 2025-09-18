@@ -1,66 +1,59 @@
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // Make sure you're using node-fetch@2
 
 module.exports = async function (context, req) {
-  context.log("🚀 Function started");
+  context.log("🔔 Function triggered");
+
+  const { prompt, height, width, apiType } = req.body || {};
+
+  if (apiType !== "video") {
+    context.res = {
+      status: 400,
+      body: { error: "Only 'video' API is implemented in backend for now." }
+    };
+    return;
+  }
+
+  // 🔐 Adobe credentials - use env vars in production
+  const clientId = 'd53bc6ef2dd3444ca99d8144e4abc23e';
+  const clientSecret = process.env.FIREFLY_SECRET || 'your-client-secret-here';
+
+  if (!clientId || !clientSecret) {
+    context.log("❌ Missing Adobe credentials");
+    context.res = {
+      status: 500,
+      body: { error: "Missing Adobe credentials in environment variables." }
+    };
+    return;
+  }
 
   try {
-    const { prompt, height, width, apiType } = req.body || {};
-    context.log("📝 Request Body:", req.body);
+    // 🔐 1. Get Adobe access token
+    context.log("🔐 Fetching Adobe access token...");
 
-    if (apiType !== "video") {
-      context.log("❌ Unsupported apiType:", apiType);
-      context.res = {
-        status: 400,
-        body: { error: "Only 'video' API is implemented in backend for now." }
-      };
-      return;
-    }
-
-  //  const clientId = process.env.FIREFLY_CLIENT_ID;
-  //  const clientSecret = process.env.FIREFLY_SECRET;
-
-    const clientId = "d53bc6ef2dd3444ca99d8144e4abc23e";
-    const clientSecret = process.env.FIREFLY_SECRET;
-
-      
-    if (!clientId || !clientSecret) {
-      context.log("❌ Missing client ID or secret");
-      context.res = {
-        status: 500,
-        body: { error: "Missing Adobe credentials in environment variables." }
-      };
-      return;
-    }
-
-    // 1. Get Adobe access token
-    context.log("🔐 Generating token...");
-   const fetch = require('node-fetch'); // version 2.x required
-
-const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/x-www-form-urlencoded'
-  },
-  body: new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    grant_type: 'client_credentials',
-    scope: 'openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs'
-  })
-});
+    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'client_credentials',
+        scope: 'openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs'
+      })
+    });
 
     const tokenData = await tokenRes.json();
-    context.log("🎟️ Raw Adobe token response:", tokenData);
+    context.log("🎟️ Adobe token response:", tokenData);
 
     const accessToken = tokenData.access_token;
     if (!accessToken) {
       throw new Error("Failed to get access token: " + JSON.stringify(tokenData));
     }
 
-    context.log("✅ Token acquired");
+    // 🎬 2. Submit video generation job
+    context.log("📽️ Submitting video generation job...");
 
-    // 2. Submit job
-    context.log("🎬 Submitting video generation job...");
     const jobRes = await fetch('https://firefly-api.adobe.io/v3/videos/generate', {
       method: 'POST',
       headers: {
@@ -86,21 +79,19 @@ const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
     });
 
     const job = await jobRes.json();
-    context.log("📦 Job Response:", job);
+    context.log("📨 Job submission response:", job);
 
     const statusUrl = job.statusUrl;
     if (!statusUrl) {
-      throw new Error("Missing statusUrl from job response: " + JSON.stringify(job));
+      throw new Error("Video job submission failed: " + JSON.stringify(job));
     }
 
-    context.log("⏳ Polling status URL:", statusUrl);
+    context.log("⏳ Job submitted, polling status...");
 
-    // 3. Polling for video generation
+    // 🔁 3. Poll for job status
     let videoUrl = null;
-    for (let i = 0; i < 18; i++) {
-      context.log(`🔁 Poll attempt ${i + 1}`);
-      await new Promise(resolve => setTimeout(resolve, 5000)); // wait 5s
-
+    for (let i = 0; i < 18; i++) { // ~90 seconds max
+      await new Promise(resolve => setTimeout(resolve, 5000));
       const statusCheck = await fetch(statusUrl, {
         method: 'POST',
         headers: {
@@ -111,16 +102,16 @@ const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
       });
 
       const statusData = await statusCheck.json();
-      context.log(`📡 Status Check ${i + 1}:`, statusData);
+      context.log(`🔄 Status Check ${i + 1}:`, statusData.status);
 
-      if (statusData.status === "succeeded" && statusData.output && statusData.output.uri) {
+      if (statusData.status === "succeeded" && statusData.output?.uri) {
         videoUrl = statusData.output.uri;
         break;
       }
     }
 
     if (videoUrl) {
-      context.log("✅ Video URL:", videoUrl);
+      context.log("✅ Video generation succeeded");
       context.res = {
         status: 200,
         body: {
@@ -129,7 +120,7 @@ const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
         }
       };
     } else {
-      context.log("⏳ Video still processing.");
+      context.log("⌛ Video still processing");
       context.res = {
         status: 202,
         body: {
@@ -140,7 +131,7 @@ const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
     }
 
   } catch (err) {
-    context.log("❗ERROR:", err.message);
+    context.log("❌ ERROR:", err.message);
     context.res = {
       status: 500,
       body: { error: err.message || "Internal Server Error" }
