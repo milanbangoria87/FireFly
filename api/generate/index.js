@@ -25,13 +25,19 @@ module.exports = async function (context, req) {
   try {
     // 1. Get Adobe token
     context.log("Fetching Adobe token...");
-    const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
-    });
+   const tokenRes = await fetch('https://ims-na1.adobelogin.com/ims/token/v3', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: "client_credentials",
+    scope: "openid AdobeID session additional_info firefly_api ff_apis read_organizations read_avatars read_jobs"
+  })
+});
 
     const tokenData = await tokenRes.json();
+    context.log("Adobe token response:", tokenData);
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
