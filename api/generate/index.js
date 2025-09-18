@@ -13,8 +13,8 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const clientId = process.env.FIREFLY_CLIENT_ID;
-  const clientSecret = process.env.FIREFLY_SECRET;
+  const clientId = "d53bc6ef2dd3444ca99d8144e4abc23e";
+  const clientSecret = "p8e-S4QHDD1hJyf-UEHK6L_MXx2BUCzhUhqq";
 
   context.log("Client ID:", clientId ? "✅ present" : "❌ missing");
   context.log("Client Secret:", clientSecret ? "✅ present" : "❌ missing");
