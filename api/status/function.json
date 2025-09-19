@@ -1,82 +1,17 @@
-document.getElementById("promptForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const apiType = document.getElementById("apiSelect").value;
-  const prompt = document.getElementById("promptInput").value.trim();
-  const height = parseInt(document.getElementById("heightInput").value) || 720;
-  const width = parseInt(document.getElementById("widthInput").value) || 720;
-
-  if (!prompt) {
-    alert("Please enter a prompt!");
-    return;
-  }
-
-  const statusEl = document.getElementById("status");
-  const resultEl = document.getElementById("result");
-  statusEl.innerText = "🔐 Generating token...";
-  resultEl.innerText = "";
-
-  try {
-    // 1. Submit generation job
-    const genResponse = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiType, prompt, height, width })
-    });
-
-    const genData = await genResponse.json();
-
-    if (!genResponse.ok) {
-      throw new Error(genData.error || "Generation request failed");
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get"],
+      "route": "status"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
     }
-
-    statusEl.innerText = `⏳ ${apiType} generation started...`;
-
-    // 2. Poll for status
-    const maxAttempts = 50;
-    const delay = 5000;
-    let attempt = 0;
-    let outputUrl = null;
-
-    while (attempt < maxAttempts) {
-      const statusResponse = await fetch("/api/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ statusUrl: genData.statusUrl, apiType })
-      });
-
-      const statusData = await statusResponse.json();
-
-      if (!statusResponse.ok) {
-        throw new Error(statusData.error || "Status polling failed");
-      }
-
-      statusEl.innerText = `⏳ ${apiType} status: ${statusData.status} (poll #${attempt + 1})`;
-
-      if (statusData.status === "succeeded") {
-        outputUrl = statusData.outputUrl;
-        break;
-      } else if (statusData.status === "failed") {
-        throw new Error("Generation failed on server");
-      }
-
-      await new Promise(res => setTimeout(res, delay));
-      attempt++;
-    }
-
-    if (!outputUrl) {
-      throw new Error("Generation timed out");
-    }
-
-    statusEl.innerText = "✅ Generation succeeded!";
-
-    // 3. Show result based on apiType
-    switch(apiType) {
-      case 'video':
-        resultEl.innerHTML = `<video src="${outputUrl}" controls style="width: 100%;"></video>`;
-        break;
-      case 'audio':
-        resultEl.innerHTML = `<audio src="${outputUrl}" controls style="width: 100%;"></audio>`;
-        break;
-      case 'image':
-        resultEl.innerHTML = `<img src="${outputUrl}" alt="Generated Image" style="width: 100%;">
+  ]
+}
