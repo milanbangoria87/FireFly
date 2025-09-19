@@ -23,13 +23,21 @@
       max-width: 450px;
       width: 100%;
     }
-    input, select {
+    input, select, textarea {
       width: 100%;
       padding: 10px;
       margin: 10px 0;
       border-radius: 6px;
       border: none;
       font-size: 1rem;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      box-sizing: border-box;
+    }
+    textarea {
+      resize: none; /* Prevent manual resizing */
+      overflow: hidden; /* Hide scrollbar */
+      min-height: 50px;
+      max-height: 200px;
     }
     button {
       padding: 12px;
@@ -41,12 +49,17 @@
       cursor: pointer;
       font-weight: bold;
       color: white;
+      transition: background 0.3s ease;
+    }
+    button:hover {
+      background: linear-gradient(45deg, #ffc371, #ff5f6d);
     }
     #status {
       margin-top: 20px;
       font-size: 1rem;
       font-weight: bold;
       animation: colorChange 2s infinite alternate;
+      min-height: 1.2em;
     }
     @keyframes colorChange {
       0% { color: #ffeb3b; }
@@ -64,6 +77,7 @@
       overflow-y: auto;
       white-space: pre-wrap;
       word-wrap: break-word;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -75,7 +89,7 @@
         <option value="video">Video API</option>
         <!-- Future: Add audio, avatar, etc. -->
       </select>
-      <textarea id="promptInput" placeholder="Enter prompt..." required rows="2" style="resize:none; overflow:hidden;"></textarea>
+      <textarea id="promptInput" placeholder="Enter prompt..." required rows="2"></textarea>
       <input type="number" id="heightInput" placeholder="Height (e.g. 720)" />
       <input type="number" id="widthInput" placeholder="Width (e.g. 720)" />
       <button type="submit">Generate</button>
@@ -83,6 +97,21 @@
     <div id="status">Not started</div>
     <pre id="result"></pre>
   </div>
+
+  <script>
+    // Auto-expand textarea height as user types
+    const promptInput = document.getElementById('promptInput');
+
+    promptInput.addEventListener('input', () => {
+      promptInput.style.height = 'auto';  // Reset height
+      promptInput.style.height = promptInput.scrollHeight + 'px';  // Set height to scrollHeight
+    });
+
+    window.addEventListener('load', () => {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = promptInput.scrollHeight + 'px';
+    });
+  </script>
 
   <script>
     document.getElementById("promptForm").addEventListener("submit", async (e) => {
@@ -130,7 +159,7 @@
         }
       }
 
-      // Start polling every 1 seconds
+      // Start polling every 1 second
       pollTimer = setInterval(pollStatus, 1000);
       pollStatus(); // initial immediate poll
 
