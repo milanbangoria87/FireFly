@@ -1,4 +1,5 @@
 const fetch = require("node-fetch");
+const status = require('../status'); // Import status updater
 
 // 🔧 API and model version mapping
 const API_MAP = {
