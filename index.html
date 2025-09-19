@@ -130,8 +130,8 @@
         }
       }
 
-      // Start polling every 3 seconds
-      pollTimer = setInterval(pollStatus, 3000);
+      // Start polling every 1 seconds
+      pollTimer = setInterval(pollStatus, 1000);
       pollStatus(); // initial immediate poll
 
       try {
@@ -152,7 +152,7 @@
 
         if (data.videoUrl) {
           statusEl.innerText = "🎬 Video generated!";
-          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ View Video</a>`;
+          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
         } else {
           statusEl.innerText = "✅ Success";
           resultEl.innerText = JSON.stringify(data, null, 2);
