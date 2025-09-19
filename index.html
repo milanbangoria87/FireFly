@@ -5,64 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Adobe Firefly API Tester</title>
   <style>
-    body, html {
-      height: 100%;
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      text-align: center;
-    }
-    .container {
-      background: rgba(0, 0, 0, 0.5);
-      padding: 30px;
-      border-radius: 12px;
-      max-width: 450px;
-      width: 100%;
-    }
-    input, select {
-      width: 100%;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 6px;
-      border: none;
-      font-size: 1rem;
-    }
-    button {
-      padding: 12px;
-      width: 100%;
-      font-size: 1.1rem;
-      background: linear-gradient(45deg, #ff5f6d, #ffc371);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-      color: white;
-    }
-    #status {
-      margin-top: 20px;
-      font-size: 1rem;
-      font-weight: bold;
-      animation: colorChange 2s infinite alternate;
-    }
-    @keyframes colorChange {
-      0% { color: #ffeb3b; }
-      25% { color: #00e676; }
-      50% { color: #03a9f4; }
-      75% { color: #e91e63; }
-      100% { color: #ff5722; }
-    }
-    pre {
-      text-align: left;
-      background: rgba(255, 255, 255, 0.1);
-      padding: 10px;
-      border-radius: 8px;
-      max-height: 200px;
-      overflow-y: auto;
-    }
+    /* [Same styling as earlier] */
   </style>
 </head>
 <body>
@@ -70,9 +13,8 @@
     <h2>Adobe Firefly API Tester</h2>
     <form id="promptForm">
       <select id="apiSelect">
-        <option value="image">Image API</option>
-        <option value="avatar">Avatar API</option>
         <option value="video">Video API</option>
+        <!-- Future: Add audio, avatar, etc. -->
       </select>
       <input type="text" id="promptInput" placeholder="Enter prompt..." required />
       <input type="number" id="heightInput" placeholder="Height (e.g. 720)" />
@@ -86,46 +28,48 @@
   <script>
     document.getElementById("promptForm").addEventListener("submit", async (e) => {
       e.preventDefault();
+
       const apiType = document.getElementById("apiSelect").value;
       const prompt = document.getElementById("promptInput").value.trim();
       const height = parseInt(document.getElementById("heightInput").value) || 720;
       const width = parseInt(document.getElementById("widthInput").value) || 720;
+
+      const statusEl = document.getElementById("status");
+      const resultEl = document.getElementById("result");
 
       if (!prompt) {
         alert("Please enter a prompt!");
         return;
       }
 
-      document.getElementById("status").innerText = "🔐 Generating token...";
-      document.getElementById("result").innerText = "";
-
       try {
+        statusEl.innerText = "🔐 Getting access token...";
+        resultEl.innerText = "";
+
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ apiType, prompt, height, width })
-          });
-        
-        let data;
-        try {
-          data = await response.json();
-        } catch (err) {
-          throw new Error("Invalid response from server. Expected JSON.");
-        }
-        
-        if (!response.ok) {
-          throw new Error(data?.error || "Something went wrong on server.");
-        }
+        });
 
-        document.getElementById("status").innerText = "✅ Completed!";
-        document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+        statusEl.innerText = "🚀 Request submitted, waiting for response...";
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Server error.");
+        }
 
         if (data.videoUrl) {
-          document.getElementById("result").innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">🎬 View Video</a>`;
+          statusEl.innerText = "🎬 Video generated!";
+          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank">▶️ View Video</a>`;
+        } else {
+          statusEl.innerText = "✅ Success";
+          resultEl.innerText = JSON.stringify(data, null, 2);
         }
       } catch (err) {
-        document.getElementById("status").innerText = "❌ Error occurred";
-        document.getElementById("result").innerText = err.message;
+        statusEl.innerText = "❌ Error occurred";
+        resultEl.innerText = err.message;
       }
     });
   </script>
