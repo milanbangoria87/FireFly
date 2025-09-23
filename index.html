@@ -34,8 +34,7 @@
       box-sizing: border-box;
     }
     textarea {
-      resize: none; /* Prevent manual resizing */
-      /* overflow: hidden;  Hide scrollbar — now handled in JS */
+      resize: none;
       min-height: 50px;
       max-height: 200px;
     }
@@ -87,32 +86,58 @@
     <form id="promptForm">
       <select id="apiSelect">
         <option value="video">Video Generation</option>
-        <option value="video">Avatar Generation</option>
-        <option value="video">Image Generation</option>
+        <option value="avatar">Avatar Generation</option>
+        <option value="image">Image Generation</option>
       </select>
+
       <textarea id="promptInput" placeholder="Enter prompt..." required rows="2"></textarea>
-      <input type="number" id="heightInput" placeholder="Height (e.g. 720)" />
-      <input type="number" id="widthInput" placeholder="Width (e.g. 720)" />
+
+      <div id="dimensionFields">
+        <input type="number" id="heightInput" placeholder="Height (e.g. 720)" />
+        <input type="number" id="widthInput" placeholder="Width (e.g. 720)" />
+      </div>
+
+      <div id="avatarFields" style="display: none;">
+        <input type="text" id="voiceIdInput" placeholder="Voice ID (e.g., v139_2)" value="v139_2" />
+        <input type="text" id="avatarIdInput" placeholder="Avatar ID (e.g., a139_2_1)" value="a139_2_1" />
+      </div>
+
       <button type="submit">Generate</button>
     </form>
+
     <div id="status">Not started</div>
     <pre id="result"></pre>
   </div>
 
   <script>
-    // Auto-expand textarea height as user types
+    // Dynamic UI toggling
+    const apiSelect = document.getElementById("apiSelect");
+    const avatarFields = document.getElementById("avatarFields");
+    const dimensionFields = document.getElementById("dimensionFields");
+
+    function toggleFields() {
+      const type = apiSelect.value;
+      avatarFields.style.display = type === "avatar" ? "block" : "none";
+      dimensionFields.style.display = (type === "video" || type === "image") ? "block" : "none";
+    }
+
+    apiSelect.addEventListener("change", toggleFields);
+    window.addEventListener("load", toggleFields);
+  </script>
+
+  <script>
     const promptInput = document.getElementById('promptInput');
-    const maxHeight = 200; // max height in px
+    const maxHeight = 200;
 
     promptInput.addEventListener('input', () => {
-      promptInput.style.height = 'auto';  // Reset height
+      promptInput.style.height = 'auto';
       const newHeight = promptInput.scrollHeight;
       if (newHeight > maxHeight) {
         promptInput.style.height = maxHeight + 'px';
-        promptInput.style.overflowY = 'auto'; // show scrollbar
+        promptInput.style.overflowY = 'auto';
       } else {
         promptInput.style.height = newHeight + 'px';
-        promptInput.style.overflowY = 'hidden'; // hide scrollbar
+        promptInput.style.overflowY = 'hidden';
       }
     });
 
@@ -137,6 +162,8 @@
       const prompt = document.getElementById("promptInput").value.trim();
       const height = parseInt(document.getElementById("heightInput").value) || 720;
       const width = parseInt(document.getElementById("widthInput").value) || 720;
+      const voiceId = document.getElementById("voiceIdInput").value.trim();
+      const avatarId = document.getElementById("avatarIdInput").value.trim();
 
       const statusEl = document.getElementById("status");
       const resultEl = document.getElementById("result");
@@ -152,14 +179,12 @@
       let polling = true;
       let pollTimer = null;
 
-      // Function to poll status endpoint
       async function pollStatus() {
         try {
           const res = await fetch("/api/status");
           if (res.ok) {
             const data = await res.json();
             statusEl.innerText = data.status || "Waiting...";
-            // Stop polling if job done or error
             if (
               data.status?.includes("✅") ||
               data.status?.includes("❌") ||
@@ -171,33 +196,42 @@
             }
           }
         } catch {
-          // Ignore polling errors silently
+          // Silent fail
         }
       }
 
-      // Start polling every 1 second
       pollTimer = setInterval(pollStatus, 1000);
-      pollStatus(); // initial immediate poll
+      pollStatus();
 
       try {
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiType, prompt, height, width })
+          body: JSON.stringify({
+            apiType,
+            prompt,
+            height,
+            width,
+            voiceId,
+            avatarId
+          })
         });
 
         const data = await response.json();
+
+        polling = false;
+        clearInterval(pollTimer);
 
         if (!response.ok) {
           throw new Error(data?.error || "Server error.");
         }
 
-        polling = false;
-        clearInterval(pollTimer);
-
         if (data.videoUrl) {
           statusEl.innerText = "🎬 Video generated!";
           resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
+        } else if (data.imageUrl) {
+          statusEl.innerText = "🖼️ Image generated!";
+          resultEl.innerHTML = `<img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />`;
         } else {
           statusEl.innerText = "✅ Success";
           resultEl.innerText = JSON.stringify(data, null, 2);
