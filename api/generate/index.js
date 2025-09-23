@@ -1,11 +1,10 @@
 const fetch = require('node-fetch');
-const status = require('../status'); // 🔁 Status tracker import
+const status = require('../status');
 
 module.exports = async function (context, req) {
   context.log("🔁 Function invoked");
 
   const { apiType, prompt, height, width, voiceId, avatarId } = req.body || {};
-
   if (!prompt || !apiType) {
     context.res = {
       status: 400,
@@ -14,8 +13,8 @@ module.exports = async function (context, req) {
     return;
   }
 
-  context.log("📥 Received input:", { prompt, height, width, voiceId, avatarId });
   status.setStatus("📥 Received input...");
+  context.log("📥 Input:", { apiType, prompt, height, width, voiceId, avatarId });
 
   const clientId = process.env.FIREFLY_CLIENT_ID;
   const clientSecret = process.env.FIREFLY_SECRET;
@@ -35,9 +34,8 @@ module.exports = async function (context, req) {
 
   const tokenData = await tokenRes.json();
   const accessToken = tokenData.access_token;
-
   if (!accessToken) {
-    status.setStatus("❌ Failed to get token.");
+    status.setStatus("❌ Failed to obtain token");
     context.res = {
       status: 500,
       body: { error: "Failed to obtain access token", details: tokenData }
@@ -45,16 +43,15 @@ module.exports = async function (context, req) {
     return;
   }
 
-  context.log("✅ Token generated!");
-  status.setStatus("✅ Token generated!");
+  context.log("✅ Token acquired");
+  status.setStatus("✅ Token acquired");
 
-  // 🔀 Dispatch API call based on apiType
-  let generationRes, generationData, jobId, statusUrl;
+  let generationRes, generationData, jobId, statusUrl, pollResult;
   const delay = 5000;
   const maxAttempts = 50;
-  let pollResult;
 
   try {
+    // 🔁 Dispatch based on apiType
     if (apiType === "video") {
       status.setStatus("📤 Submitting video generation job...");
       generationRes = await fetch("https://firefly-api.adobe.io/v3/videos/generate", {
@@ -81,7 +78,8 @@ module.exports = async function (context, req) {
       });
 
       generationData = await generationRes.json();
-      context.log("🎞️ Video job response:", generationData);
+      context.log("🎞️ Video response:", generationData);
+
       jobId = generationData.jobId;
       statusUrl = generationData.statusUrl;
 
@@ -108,15 +106,17 @@ module.exports = async function (context, req) {
       });
 
       generationData = await generationRes.json();
-      context.log("🎭 Avatar job response:", generationData);
-      jobId = generationData.jobId;
+      context.log("🎭 Avatar response:", generationData);
 
+      jobId = generationData.jobId;
       if (!jobId) throw new Error("Avatar jobId missing from response");
+
       statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${jobId}`;
 
     } else if (apiType === "image") {
       status.setStatus("📤 Submitting image generation job...");
-      generationRes = await fetch("https://firefly-api.adobe.io/v2/images/generate", {
+
+      generationRes = await fetch("https://firefly-api.adobe.io/v3/images/generate", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -125,17 +125,21 @@ module.exports = async function (context, req) {
         },
         body: JSON.stringify({
           prompt,
-          sizes: [{ height, width }],
-          outputType: "image/jpeg"
+          contentClass: "photo",
+          numVariations: 1,
+          size: { height: parseInt(height), width: parseInt(width) },
+          upsamplerType: "default",
+          visualIntensity: 2
         })
       });
 
       generationData = await generationRes.json();
-      context.log("🖼️ Image job response:", generationData);
-      jobId = generationData.jobId;
+      context.log("🖼️ Image response:", generationData);
 
+      jobId = generationData.jobId;
       if (!jobId) throw new Error("Image jobId missing from response");
-      statusUrl = `https://firefly-api.adobe.io/v2/images/status/${jobId}`;
+
+      statusUrl = `https://firefly-api.adobe.io/v3/status/${jobId}`;
 
     } else {
       context.res = {
@@ -146,16 +150,11 @@ module.exports = async function (context, req) {
     }
 
     if (!statusUrl) {
-      status.setStatus("❌ Failed to get status URL.");
-      context.res = {
-        status: 500,
-        body: { error: "No status URL returned", details: generationData }
-      };
-      return;
+      throw new Error("No status URL returned");
     }
 
-    // ⏳ Step 2: Poll status
-    status.setStatus("⏳ Generating content...");
+    // ⏳ Polling Loop
+    status.setStatus("⏳ Waiting for generation...");
     let attempts = 0;
 
     while (attempts < maxAttempts) {
@@ -168,24 +167,25 @@ module.exports = async function (context, req) {
 
       const statusText = await statusRes.text();
       let statusData;
+
       try {
         statusData = JSON.parse(statusText);
       } catch (err) {
-        context.log("❌ Failed to parse status response:", statusText);
-        throw new Error("Status API did not return valid JSON.");
+        context.log("❌ Invalid JSON from status API:", statusText);
+        throw new Error("Status API returned invalid JSON.");
       }
 
-      context.log(`⌛ Poll ${attempts + 1}:`, statusData.status);
+      context.log(`⌛ Attempt ${attempts + 1}: Status - ${statusData.status}`);
 
       if (statusData.status === "succeeded") {
-        status.setStatus("✅ Generation complete!");
         pollResult = statusData;
+        status.setStatus("✅ Generation succeeded!");
         break;
       }
 
       if (statusData.status === "failed") {
-        status.setStatus("❌ Generation failed.");
         pollResult = statusData;
+        status.setStatus("❌ Generation failed.");
         break;
       }
 
@@ -204,37 +204,35 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ✅ Step 3: Return results
-    const outputs = pollResult?.result?.outputs?.[0];
+    // ✅ Success — extract URLs
+    const output = pollResult?.result?.outputs?.[0];
+    const imageUrl = output?.image?.url;
+    const videoUrl = output?.video?.url;
 
-    if (apiType === "image") {
-      const imageUrl = outputs?.image?.url;
-      context.res = {
-        status: 200,
-        body: {
-          message: "✅ Image generated successfully!",
-          imageUrl
-        }
-      };
+    const response = {
+      message: "✅ Generation completed successfully!",
+      jobId: jobId
+    };
+
+    if (apiType === "image" && imageUrl) {
+      response.imageUrl = imageUrl;
+    } else if ((apiType === "video" || apiType === "avatar") && videoUrl) {
+      response.videoUrl = videoUrl;
     } else {
-      const videoUrl = outputs?.video?.url;
-      context.res = {
-        status: 200,
-        body: {
-          message: "✅ Video generated successfully!",
-          videoUrl
-        }
-      };
+      response.warning = "Media URL not found in output";
     }
 
+    context.res = {
+      status: 200,
+      body: response
+    };
+
   } catch (err) {
-    context.log("❌ Exception:", err.message);
+    context.log("❌ Error occurred:", err.message);
     status.setStatus("❌ Unexpected error.");
     context.res = {
       status: 500,
-      body: {
-        error: err.message || "Unexpected error occurred"
-      }
+      body: { error: err.message || "Unexpected error" }
     };
   }
 };
