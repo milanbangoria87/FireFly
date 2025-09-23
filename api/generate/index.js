@@ -14,7 +14,7 @@ module.exports = async function (context, req) {
     return;
   }
 
-  context.log("📥 Received input:", { prompt, height, width });
+  context.log("📥 Received input:", { prompt, height, width, voiceId, avatarId });
   status.setStatus("📥 Received input...");
 
   const clientId = process.env.FIREFLY_CLIENT_ID;
@@ -34,8 +34,6 @@ module.exports = async function (context, req) {
   });
 
   const tokenData = await tokenRes.json();
-  context.log("🎟️ Adobe token response:", tokenData);
-
   const accessToken = tokenData.access_token;
 
   if (!accessToken) {
@@ -50,14 +48,11 @@ module.exports = async function (context, req) {
   context.log("✅ Token generated!");
   status.setStatus("✅ Token generated!");
 
-  // 👉 Dispatch API based on type
-  let generationRes;
-  let generationData;
-  let statusUrl;
-  let pollResult;
-
-  const delay = 5000; // ms
+  // 🔀 Dispatch API call based on apiType
+  let generationRes, generationData, jobId, statusUrl;
+  const delay = 5000;
   const maxAttempts = 50;
+  let pollResult;
 
   try {
     if (apiType === "video") {
@@ -87,6 +82,7 @@ module.exports = async function (context, req) {
 
       generationData = await generationRes.json();
       context.log("🎞️ Video job response:", generationData);
+      jobId = generationData.jobId;
       statusUrl = generationData.statusUrl;
 
     } else if (apiType === "avatar") {
@@ -107,17 +103,16 @@ module.exports = async function (context, req) {
           },
           voiceId,
           avatarId,
-          output: {
-            mediaType: "video/mp4"
-          }
+          output: { mediaType: "video/mp4" }
         })
       });
 
       generationData = await generationRes.json();
       context.log("🎭 Avatar job response:", generationData);
+      jobId = generationData.jobId;
 
-      const adobeJobId = generationData.jobId;
-      statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${adobeJobId}`;
+      if (!jobId) throw new Error("Avatar jobId missing from response");
+      statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${jobId}`;
 
     } else if (apiType === "image") {
       status.setStatus("📤 Submitting image generation job...");
@@ -137,9 +132,10 @@ module.exports = async function (context, req) {
 
       generationData = await generationRes.json();
       context.log("🖼️ Image job response:", generationData);
+      jobId = generationData.jobId;
 
-      const imageJobId = generationData.jobId;
-      statusUrl = `https://firefly-api.adobe.io/v2/images/status/${imageJobId}`;
+      if (!jobId) throw new Error("Image jobId missing from response");
+      statusUrl = `https://firefly-api.adobe.io/v2/images/status/${jobId}`;
 
     } else {
       context.res = {
@@ -150,15 +146,15 @@ module.exports = async function (context, req) {
     }
 
     if (!statusUrl) {
-      status.setStatus("❌ Failed to submit generation job.");
+      status.setStatus("❌ Failed to get status URL.");
       context.res = {
         status: 500,
-        body: { error: "Job submission failed", details: generationData }
+        body: { error: "No status URL returned", details: generationData }
       };
       return;
     }
 
-    // ⏳ Step 2: Poll job status
+    // ⏳ Step 2: Poll status
     status.setStatus("⏳ Generating content...");
     let attempts = 0;
 
@@ -170,7 +166,15 @@ module.exports = async function (context, req) {
         }
       });
 
-      const statusData = await statusRes.json();
+      const statusText = await statusRes.text();
+      let statusData;
+      try {
+        statusData = JSON.parse(statusText);
+      } catch (err) {
+        context.log("❌ Failed to parse status response:", statusText);
+        throw new Error("Status API did not return valid JSON.");
+      }
+
       context.log(`⌛ Poll ${attempts + 1}:`, statusData.status);
 
       if (statusData.status === "succeeded") {
@@ -200,7 +204,7 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ✅ Step 3: Extract result
+    // ✅ Step 3: Return results
     const outputs = pollResult?.result?.outputs?.[0];
 
     if (apiType === "image") {
@@ -209,8 +213,7 @@ module.exports = async function (context, req) {
         status: 200,
         body: {
           message: "✅ Image generated successfully!",
-          imageUrl,
-          jobId: generationData.jobId || pollResult?.jobId
+          imageUrl
         }
       };
     } else {
@@ -219,8 +222,7 @@ module.exports = async function (context, req) {
         status: 200,
         body: {
           message: "✅ Video generated successfully!",
-          videoUrl,
-          jobId: generationData.jobId || pollResult?.jobId
+          videoUrl
         }
       };
     }
