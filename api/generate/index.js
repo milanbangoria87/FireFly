@@ -62,6 +62,7 @@ module.exports = async function (context, req) {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        "x-model-version": "image4_standard",
         "x-api-key": clientId
       },
       body: JSON.stringify({
