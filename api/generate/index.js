@@ -57,7 +57,7 @@ module.exports = async function (context, req) {
     status.setStatus("🖼️ Submitting image generation job...");
 
     // Step 2: Submit image generation request
-    const imageGenRes = await fetch("https://firefly-api.adobe.io/v3/images/generate", {
+    const imageGenRes = await fetch("https://firefly-api.adobe.io/v3/images/generate-async", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
