@@ -14,7 +14,7 @@ module.exports = async function (context, req) {
     return;
   }
 
-  context.log("📥 Received input:", { userPrompt, height, width });
+  context.log("📥 Received input:", { prompt, height, width });
   status.setStatus("📥 Received input...");
 
   const clientId = process.env.FIREFLY_CLIENT_ID;
@@ -50,15 +50,13 @@ module.exports = async function (context, req) {
   context.log("✅ Token generated!");
   status.setStatus("✅ Token generated!");
 
-
-// 👉 Dispatch API based on type
+  // 👉 Dispatch API based on type
   let generationRes;
   let generationData;
   let statusUrl;
   let pollResult;
-  let videoUrl;
 
-  const delay = 5000;
+  const delay = 5000; // ms
   const maxAttempts = 50;
 
   try {
@@ -88,7 +86,7 @@ module.exports = async function (context, req) {
       });
 
       generationData = await generationRes.json();
-      context.log("🎞️ Job submission response:", generationData);
+      context.log("🎞️ Video job response:", generationData);
       statusUrl = generationData.statusUrl;
 
     } else if (apiType === "avatar") {
@@ -116,7 +114,7 @@ module.exports = async function (context, req) {
       });
 
       generationData = await generationRes.json();
-      context.log("🎭 Avatar submission response:", generationData);
+      context.log("🎭 Avatar job response:", generationData);
 
       const adobeJobId = generationData.jobId;
       statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${adobeJobId}`;
@@ -160,7 +158,7 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ⏳ Step 2: Poll status
+    // ⏳ Step 2: Poll job status
     status.setStatus("⏳ Generating content...");
     let attempts = 0;
 
@@ -211,19 +209,22 @@ module.exports = async function (context, req) {
         status: 200,
         body: {
           message: "✅ Image generated successfully!",
-          imageUrl
+          imageUrl,
+          jobId: generationData.jobId || pollResult?.jobId
         }
       };
     } else {
-      videoUrl = outputs?.video?.url;
+      const videoUrl = outputs?.video?.url;
       context.res = {
         status: 200,
         body: {
           message: "✅ Video generated successfully!",
-          videoUrl
+          videoUrl,
+          jobId: generationData.jobId || pollResult?.jobId
         }
       };
     }
+
   } catch (err) {
     context.log("❌ Exception:", err.message);
     status.setStatus("❌ Unexpected error.");
@@ -235,107 +236,3 @@ module.exports = async function (context, req) {
     };
   }
 };
-  
-
-/*
-  // Working from here previously
-  // 🎞️ Step 2: Submit video generation request
-  status.setStatus("📤 Submitting video generation job...");
-  const generationRes = await fetch("https://firefly-api.adobe.io/v3/videos/generate", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "x-api-key": clientId,
-      "x-model-version": "video1_standard"
-    },
-    body: JSON.stringify({
-      bitRateFactor: 18,
-      image: { conditions: [] },
-      prompt: userPrompt,
-      seeds: [1842533538],
-      sizes: [{ height, width }],
-      videoSettings: {
-        cameraMotion: "camera pan left",
-        promptStyle: "anime",
-        shotAngle: "aerial shot",
-        shotSize: "close-up shot"
-      }
-    })
-  });
-
-  const generationData = await generationRes.json();
-  context.log("🎞️ Job submission response:", generationData);
-
-  const { jobId, statusUrl } = generationData;
-
-  if (!statusUrl) {
-    status.setStatus("❌ Failed to submit video job.");
-    context.res = {
-      status: 500,
-      body: { error: "Failed to submit Firefly job", details: generationData }
-    };
-    return;
-  }
-
-  // ⏳ Step 3: Poll job status
-  status.setStatus("⏳ Generating video...");
-  let pollResult;
-  let attempts = 0;
-  const maxAttempts = 50;
-  const delay = 5000;
-
-  while (attempts < maxAttempts) {
-    const statusRes = await fetch(statusUrl, {
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "x-api-key": clientId
-      }
-    });
-
-    const statusData = await statusRes.json();
-    context.log(`⌛ Poll ${attempts + 1}:`, statusData.status);
-
-    if (statusData.status === "succeeded") {
-      status.setStatus("✅ Video generated!");
-      pollResult = statusData;
-      break;
-    }
-
-    if (statusData.status === "failed") {
-      status.setStatus("❌ Generation failed.");
-      pollResult = statusData;
-      break;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, delay));
-    attempts++;
-  }
-
-  if (!pollResult || pollResult.status !== "succeeded") {
-    context.res = {
-      status: 500,
-      body: {
-        error: "Video generation failed or timed out",
-        finalStatus: pollResult?.status || "unknown"
-      }
-    };
-    return;
-  }
-
-  // ✅ Step 4: Return final video URL
-  const videoUrl = pollResult.result.outputs?.[0]?.video?.url;
-
-  context.res = {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    body: {
-      message: "✅ Video generated successfully!",
-      jobId: pollResult.jobId,
-      videoUrl: videoUrl
-    }
-  };
-};
-*/
-
-  
