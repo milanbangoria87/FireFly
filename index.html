@@ -230,8 +230,17 @@
           statusEl.innerText = "🎬 Video generated!";
           resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
         } else if (data.imageUrl) {
-          statusEl.innerText = "🖼️ Image generated!";
-          resultEl.innerHTML = `<img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />`;
+           statusEl.innerText = "🖼️ Image generated!";
+            resultEl.innerHTML = `
+              <img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />
+              <p>
+                <a href="${data.imageUrl}" target="_blank" download style="color: #00e676; font-weight: bold;">
+                  🔗 Click here to view or download the image
+                </a>
+              </p>
+            `;
+          //statusEl.innerText = "🖼️ Image generated!";
+          //resultEl.innerHTML = `<img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />`;
         } else {
           statusEl.innerText = "✅ Success";
           resultEl.innerText = JSON.stringify(data, null, 2);
