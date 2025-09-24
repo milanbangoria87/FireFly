@@ -239,23 +239,29 @@ pollStatus(); // 🔁 Start polling immediately
           statusEl.innerText = "🎬 Video generated!";
           resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
         } 
-         else if (data.imageUrl) {
+        else if (data.imageUrl) {
   statusEl.innerText = "🖼️ Image generated!";
 
   resultEl.innerHTML = `
-    <p style="margin-bottom: 8px;">
+    <p style="margin-bottom: 12px;">
       <a 
         href="${data.imageUrl}" 
         target="_blank" 
-        download 
+        download
         style="
-          color: #00e676; 
-          font-weight: bold; 
-          text-decoration: underline; 
           display: inline-block;
-          line-height: 1.2;
-        ">
-        🔗 Click here to view or download the image
+          padding: 10px 18px;
+          background: linear-gradient(45deg, #00e676, #00b0ff);
+          color: white;
+          font-weight: bold;
+          border-radius: 6px;
+          text-decoration: none;
+          transition: background 0.3s ease;
+        "
+        onmouseover="this.style.background='linear-gradient(45deg, #00b0ff, #00e676)'"
+        onmouseout="this.style.background='linear-gradient(45deg, #00e676, #00b0ff)'"
+      >
+        ⬇️ Download or View Image
       </a>
     </p>
     <img 
