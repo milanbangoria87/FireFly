@@ -242,9 +242,8 @@ pollStatus(); // 🔁 Start polling immediately
 
           else if (data.imageUrl) {
   statusEl.innerText = "🖼️ Image generated!";
-
   resultEl.innerHTML = `
-    <p style="margin-bottom: 12px;">
+    <p style="margin: 6px 6px 6px 6px;">
       <a 
         href="${data.imageUrl}" 
         target="_blank" 
@@ -254,7 +253,7 @@ pollStatus(); // 🔁 Start polling immediately
           font-weight: bold;
           text-decoration: none;
         "
-        onmouseover="this.style.textDecoration='underline'"
+ //       onmouseover="this.style.textDecoration='underline'"
         onmouseout="this.style.textDecoration='none'"
       >
         ⬇️ Download or View Image
