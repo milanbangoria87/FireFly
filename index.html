@@ -231,13 +231,25 @@
           resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
         } else if (data.imageUrl) {
            statusEl.innerText = "🖼️ Image generated!";
-            resultEl.innerHTML = `
+           
+             <p style="margin-top: 8px;">
+              <a 
+                href="${data.imageUrl}" 
+                target="_blank" 
+                download 
+                style="color: #00e676; font-weight: bold; text-decoration: underline; display: inline;">
+                🔗 Click here to view or download the image
+              </a>
+            </p>
+             
+             // <p>
+              //  <a href="${data.imageUrl}" target="_blank" download style="color: #00e676; font-weight: bold;">
+               //   🔗 Click here to view or download the image
+               // </a>
+              // </p>
+               resultEl.innerHTML = `
               <img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />
-              <p>
-                <a href="${data.imageUrl}" target="_blank" download style="color: #00e676; font-weight: bold;">
-                  🔗 Click here to view or download the image
-                </a>
-              </p>
+                  
             `;
           //statusEl.innerText = "🖼️ Image generated!";
           //resultEl.innerHTML = `<img src="${data.imageUrl}" alt="Generated Image" style="max-width: 100%; border-radius: 8px;" />`;
