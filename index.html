@@ -173,35 +173,44 @@
         return;
       }
 
-      resultEl.innerText = "";
-      statusEl.innerText = "🔐 Getting access token...";
+resultEl.innerText = "";
+statusEl.innerText = "🔐 Getting access token...";
 
-      let polling = true;
-      let pollTimer = null;
+let polling = true;
+let pollTimer = null;
+let lastKnownStatus = "🔐 Getting access token...";  // ✅ Track last known status
 
-      async function pollStatus() {
-        try {
-          const res = await fetch("/api/status");
-          if (res.ok) {
-            const data = await res.json();
-            statusEl.innerText = data.status || "Waiting...";
-            if (
-              data.status?.includes("✅") ||
-              data.status?.includes("❌") ||
-              data.status?.toLowerCase().includes("failed") ||
-              data.status?.toLowerCase().includes("completed")
-            ) {
-              polling = false;
-              clearInterval(pollTimer);
-            }
-          }
-        } catch {
-          // Silent fail
-        }
+async function pollStatus() {
+  try {
+    const res = await fetch("/api/status");
+    if (res.ok) {
+      const data = await res.json();
+
+      // ✅ Only update status if new one is meaningful and changed
+      if (data.status && data.status !== lastKnownStatus) {
+        statusEl.innerText = data.status;
+        lastKnownStatus = data.status;
       }
 
-      pollTimer = setInterval(pollStatus, 1000);
-      pollStatus();
+      // ✅ Stop polling on success or failure
+      if (
+        data.status?.includes("✅") ||
+        data.status?.includes("❌") ||
+        data.status?.toLowerCase().includes("failed") ||
+        data.status?.toLowerCase().includes("completed")
+      ) {
+        polling = false;
+        clearInterval(pollTimer);
+      }
+    }
+  } catch {
+    // ❗ Silent fail: do NOT change status
+    // This prevents status from reverting to default or blank
+  }
+}
+
+pollTimer = setInterval(pollStatus, 1000);
+pollStatus(); // 🔁 Start polling immediately
 
       try {
         const response = await fetch("/api/generate", {
