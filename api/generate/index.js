@@ -71,7 +71,7 @@ module.exports = async function (context, req) {
         size: { height, width },
         numVariations: 1,
         seeds: [0],
-        upsamplerType: "default",
+    //    upsamplerType: "default",
         visualIntensity: 2
       })
     });
