@@ -149,6 +149,103 @@ module.exports = async function (context, req) {
     };
     return; // 🛑 Stop execution after image flow
   }
+// 🎞️ Avatar GENERATION BLOCK 
+else if (apiType === "avatar") {
+  status.setStatus("📤 Submitting avatar generation job...");
+
+  // 🛰️ Step 1: Submit Avatar job
+  const avatarRes = await fetch("https://audio-video-api.adobe.io/v1/generate-avatar", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "x-api-key": clientId
+    },
+    body: JSON.stringify({
+      script: {
+        type: "text",
+        text: prompt,
+        localeCode: "en-US",
+        mediaType: "text/plain"
+      },
+      voiceId,
+      avatarId,
+      output: { mediaType: "video/mp4" }
+    })
+  });
+
+  const avatarData = await avatarRes.json();
+  context.log("🎭 Avatar job response:", avatarData);
+
+  const jobId = avatarData?.jobId;
+  const statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${jobId}`;
+
+  if (!jobId) {
+    status.setStatus("❌ Avatar jobId missing.");
+    context.res = {
+      status: 500,
+      body: { error: "Failed to start avatar generation job", details: avatarData }
+    };
+    return;
+  }
+
+  // ⏳ Step 2: Poll job status
+  status.setStatus("⏳ Generating avatar video...");
+  let pollResult;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    const statusRes = await fetch(statusUrl, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-api-key": clientId
+      }
+    });
+
+    const statusData = await statusRes.json();
+    context.log(`⌛ Avatar Poll ${attempts + 1}:`, statusData.status);
+
+    if (statusData.status === "succeeded") {
+      pollResult = statusData;
+      status.setStatus("✅ Avatar generated!");
+      break;
+    }
+
+    if (statusData.status === "failed") {
+      pollResult = statusData;
+      status.setStatus("❌ Avatar generation failed.");
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, delay));
+    attempts++;
+  }
+
+  if (!pollResult || pollResult.status !== "succeeded") {
+    context.res = {
+      status: 500,
+      body: {
+        error: "Avatar generation failed or timed out",
+        finalStatus: pollResult?.status || "unknown"
+      }
+    };
+    return;
+  }
+
+  // ✅ Step 3: Return Avatar Video
+  const videoUrl = pollResult?.result?.outputs?.[0]?.video?.url;
+  context.res = {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+    body: {
+      message: "✅ Avatar generated successfully!",
+      jobId,
+      videoUrl
+    }
+  };
+}
+
+  
 
   // 🎞️ VIDEO GENERATION BLOCK (LEAVE AS IS)
   status.setStatus("📤 Submitting video generation job...");
