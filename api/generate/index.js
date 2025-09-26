@@ -2,6 +2,7 @@ const fetch = require('node-fetch');
 const status = require('../status'); // 🔁 Status tracker import
 
 module.exports = async function (context, req) {
+try{
   context.log("🔁 Function invoked");
 
   const userPrompt = req.body?.prompt;
@@ -149,8 +150,12 @@ module.exports = async function (context, req) {
     };
     return; // 🛑 Stop execution after image flow
   }
+    
 // 🎞️ Avatar GENERATION BLOCK 
-else if (apiType === "avatar") {
+  else if (apiType === "avatar") {
+  const prompt = req.body?.prompt;
+  const voiceId = req.body?.voiceId;
+  const avatarId = req.body?.avatarId;  
   status.setStatus("📤 Submitting avatar generation job...");
 
   // 🛰️ Step 1: Submit Avatar job
@@ -244,10 +249,9 @@ else if (apiType === "avatar") {
     }
   };
 }
+  // 🎞️ VIDEO GENERATION BLOCK
+else if (apiType === "video") {
 
-  
-
-  // 🎞️ VIDEO GENERATION BLOCK (LEAVE AS IS)
   status.setStatus("📤 Submitting video generation job...");
   const generationRes = await fetch("https://firefly-api.adobe.io/v3/videos/generate", {
     method: "POST",
@@ -272,6 +276,7 @@ else if (apiType === "avatar") {
     })
   });
 
+  
   const generationData = await generationRes.json();
   context.log("🎞️ Job submission response:", generationData);
 
@@ -344,4 +349,15 @@ else if (apiType === "avatar") {
       videoUrl: videoUrl
     }
   };
+};
+}
+} 
+  catch (err) {
+    context.log("💥 Unexpected error:", err);
+    status.setStatus("❌ Internal server error.");
+    context.res = {
+      status: 500,
+      body: { error: "Internal server error", details: err.message }
+  
+  }
 };
