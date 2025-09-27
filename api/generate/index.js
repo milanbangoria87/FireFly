@@ -8,6 +8,7 @@ module.exports = async function (context, req) {
     const userPrompt = req.body?.prompt;
     const height = parseInt(req.body?.height);
     const width = parseInt(req.body?.width);
+
     const apiType = req.body?.apiType || "video"; // default to video if not provided
 
     if (!userPrompt) {
@@ -150,7 +151,10 @@ module.exports = async function (context, req) {
       };
       return; // 🛑 Stop execution after image flow
     }
-    
+
+      const prompt = req.body?.prompt;
+      const voiceId = req.body?.voiceId;
+      const avatarId = req.body?.avatarId;  
     // 🎞️ Avatar GENERATION BLOCK 
     else if (apiType === "avatar") {
        if (!voiceId || !avatarId) 
@@ -158,9 +162,7 @@ module.exports = async function (context, req) {
       return res.status(400).json({ error: "Voice ID and Avatar ID are required." });
       }
       
-      const prompt = req.body?.prompt;
-      const voiceId = req.body?.voiceId;
-      const avatarId = req.body?.avatarId;  
+
       status.setStatus("📤 Submitting avatar generation job...");
 
       // 🛰️ Step 1: Submit Avatar job
