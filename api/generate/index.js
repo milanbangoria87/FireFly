@@ -153,6 +153,11 @@ module.exports = async function (context, req) {
     
     // 🎞️ Avatar GENERATION BLOCK 
     else if (apiType === "avatar") {
+       if (!voiceId || !avatarId) 
+       {
+      return res.status(400).json({ error: "Voice ID and Avatar ID are required." });
+      }
+      
       const prompt = req.body?.prompt;
       const voiceId = req.body?.voiceId;
       const avatarId = req.body?.avatarId;  
@@ -173,8 +178,12 @@ module.exports = async function (context, req) {
             localeCode: "en-US",
             mediaType: "text/plain"
           },
-          voiceId,
-          avatarId,
+         voice: {
+          voiceId: voiceId
+        },
+        avatar: {
+          avatarId: avatarId
+        },
           output: { mediaType: "video/mp4" }
         })
       });
