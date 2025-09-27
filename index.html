@@ -173,57 +173,70 @@
         return;
       }
 
-resultEl.innerText = "";
-statusEl.innerText = "🔐 Getting access token...";
-
-let polling = true;
-let pollTimer = null;
-let lastKnownStatus = "🔐 Getting access token...";  // ✅ Track last known status
-
-async function pollStatus() {
-  try {
-    const res = await fetch("/api/status");
-    if (res.ok) {
-      const data = await res.json();
-
-      // ✅ Only update status if new one is meaningful and changed
-      if (data.status && data.status !== lastKnownStatus) {
-        statusEl.innerText = data.status;
-        lastKnownStatus = data.status;
+      if (apiType === "avatar") {
+        if (!voiceId) {
+          alert("Please enter a Voice ID for avatar generation.");
+          return;
+        }
+        if (!avatarId) {
+          alert("Please enter an Avatar ID for avatar generation.");
+          return;
+        }
       }
 
-      // ✅ Stop polling on success or failure
-      if (
-        data.status?.includes("✅") ||
-        data.status?.includes("❌") ||
-        data.status?.toLowerCase().includes("failed") ||
-        data.status?.toLowerCase().includes("completed")
-      ) {
-        polling = false;
-        clearInterval(pollTimer);
-      }
-    }
-  } catch {
-    // ❗ Silent fail: do NOT change status
-    // This prevents status from reverting to default or blank
-  }
-}
+      resultEl.innerText = "";
+      statusEl.innerText = "🔐 Getting access token...";
 
-pollTimer = setInterval(pollStatus, 1000);
-pollStatus(); // 🔁 Start polling immediately
+      let polling = true;
+      let pollTimer = null;
+      let lastKnownStatus = "🔐 Getting access token...";
+
+      async function pollStatus() {
+        try {
+          const res = await fetch("/api/status");
+          if (res.ok) {
+            const data = await res.json();
+
+            if (data.status && data.status !== lastKnownStatus) {
+              statusEl.innerText = data.status;
+              lastKnownStatus = data.status;
+            }
+
+            if (
+              data.status?.includes("✅") ||
+              data.status?.includes("❌") ||
+              data.status?.toLowerCase().includes("failed") ||
+              data.status?.toLowerCase().includes("completed")
+            ) {
+              polling = false;
+              clearInterval(pollTimer);
+            }
+          }
+        } catch {
+          // Silent fail, do not change status
+        }
+      }
+
+      pollTimer = setInterval(pollStatus, 1000);
+      pollStatus();
 
       try {
+        const payload = { apiType, prompt };
+
+        if (apiType === "image" || apiType === "video") {
+          payload.height = height;
+          payload.width = width;
+        }
+
+        if (apiType === "avatar") {
+          payload.voiceId = voiceId;
+          payload.avatarId = avatarId;
+        }
+
         const response = await fetch("/api/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            apiType,
-            prompt,
-            height,
-            width,
-            voiceId,
-            avatarId
-          })
+          body: JSON.stringify(payload),
         });
 
         const data = await response.json();
@@ -235,57 +248,29 @@ pollStatus(); // 🔁 Start polling immediately
           throw new Error(data?.error || "Server error.");
         }
 
-        if (data.videoUrl) {
+        if (apiType === "avatar" && data.videoUrl) {
+          statusEl.innerText = "🎭 Avatar video generated!";
+          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Avatar Video</a>`;
+        } else if (data.videoUrl) {
           statusEl.innerText = "🎬 Video generated!";
           resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
-        } 
-
-          else if (data.imageUrl) {
-  statusEl.innerText = "🖼️ Image generated!";
-  resultEl.innerHTML = `
-    <p style="margin: 6px 6px 6px 6px;">
-      <a 
-        href="${data.imageUrl}" 
-        target="_blank" 
-        download 
-        style="
-          color: #00e676;
-          font-weight: bold;
-          text-decoration: none;
-        "
- //       onmouseover="this.style.textDecoration='underline'"
-        onmouseout="this.style.textDecoration='none'"
-      >
-        ⬇️ Download or View Image
-      </a>
-    </p>
-    <img 
-      src="${data.imageUrl}" 
-      alt="Generated Image" 
-      style="max-width: 100%; border-radius: 8px;" 
-    />
-  `;
-}
-
-
-             // <p>
-              //  <a href="${data.imageUrl}" target="_blank" download style="color: #00e676; font-weight: bold;">
-               //   🔗 Click here to view or download the image
-               // </a>
-              // </p>
-
-                  
-       else {
-          statusEl.innerText = "✅ Success";
-          resultEl.innerText = JSON.stringify(data, null, 2);
-        }
-      } catch (err) {
-        polling = false;
-        clearInterval(pollTimer);
-        statusEl.innerText = "❌ Error occurred";
-        resultEl.innerText = err.message;
-      }
-    });
-  </script>
-</body>
-</html>
+        } else if (data.imageUrl) {
+          statusEl.innerText = "🖼️ Image generated!";
+          resultEl.innerHTML = `
+            <p style="margin: 6px;">
+              <a 
+                href="${data.imageUrl}" 
+                target="_blank" 
+                download 
+                style="color: #00e676; font-weight: bold; text-decoration: none;"
+                onmouseover="this.style.textDecoration='underline'"
+                onmouseout="this.style.textDecoration='none'"
+              >
+                ⬇️ Download or View Image
+              </a>
+            </p>
+            <img 
+              src="${data.imageUrl}" 
+              alt="Generated Image" 
+              style="max-width: 100%; border-radius: 8px;" 
+           
