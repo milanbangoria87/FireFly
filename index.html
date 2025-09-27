@@ -257,13 +257,12 @@ pollStatus(); // 🔁 Start polling immediately
           throw new Error(data?.error || "Server error.");
         }
 
-        if (data.videoUrl) {
-          statusEl.innerText = "🎬 Video generated!";
-          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
-        } 
-          else if (apiType === "avatar" && data.videoUrl) {
-          statusEl.innerText = "🎭 Avatar video generated!";
-          resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Avatar Video</a>`;
+     if (apiType === "avatar" && data.videoUrl) {
+        statusEl.innerText = "🎭 Avatar video generated!";
+        resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Avatar Video</a>`;
+      } else if (data.videoUrl) {
+        statusEl.innerText = "🎬 Video generated!";
+        resultEl.innerHTML = `<a href="${data.videoUrl}" target="_blank" style="color: #00e676;">▶️ Click here to View Video</a>`;
 
           else if (data.imageUrl) {
   statusEl.innerText = "🖼️ Image generated!";
