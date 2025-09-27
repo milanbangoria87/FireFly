@@ -5,13 +5,15 @@ module.exports = async function (context, req) {
   try {
     context.log("🔁 Function invoked");
 
-    const userPrompt = req.body?.prompt;
+    // 🔽 Unified input vars
+    const prompt = req.body?.prompt;
     const height = parseInt(req.body?.height);
     const width = parseInt(req.body?.width);
-
+    const voiceId = req.body?.voiceId;
+    const avatarId = req.body?.avatarId;
     const apiType = req.body?.apiType || "video"; // default to video if not provided
 
-    if (!userPrompt) {
+    if (!prompt) {
       context.res = {
         status: 400,
         body: { error: "Missing prompt." }
@@ -19,7 +21,7 @@ module.exports = async function (context, req) {
       return;
     }
 
-    context.log("📥 Received input:", { userPrompt, height, width, apiType });
+    context.log("📥 Received input:", { prompt, height, width, apiType });
     status.setStatus("📥 Received input...");
 
     const clientId = process.env.FIREFLY_CLIENT_ID;
@@ -58,7 +60,6 @@ module.exports = async function (context, req) {
     if (apiType === "image") {
       status.setStatus("🖼️ Submitting image generation job...");
 
-      // Step 2: Submit image generation request
       const imageGenRes = await fetch("https://firefly-api.adobe.io/v3/images/generate-async", {
         method: "POST",
         headers: {
@@ -69,11 +70,10 @@ module.exports = async function (context, req) {
         },
         body: JSON.stringify({
           contentClass: "photo",
-          prompt: userPrompt,
+          prompt,
           size: { height, width },
           numVariations: 1,
           seeds: [0],
-          // upsamplerType: "default",
           visualIntensity: 2
         })
       });
@@ -138,7 +138,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Step 4: Return image URL
       const imageUrl = pollResult.result?.outputs?.[0]?.image?.url;
       context.res = {
         status: 200,
@@ -146,26 +145,24 @@ module.exports = async function (context, req) {
         body: {
           message: "✅ Image generated successfully!",
           jobId: pollResult.jobId,
-          imageUrl: imageUrl
+          imageUrl
         }
       };
-      return; // 🛑 Stop execution after image flow
+      return;
     }
 
-      const prompt = req.body?.prompt;
-      const voiceId = req.body?.voiceId;
-      const avatarId = req.body?.avatarId;  
-    // 🎞️ Avatar GENERATION BLOCK 
+    // 🎭 AVATAR GENERATION BLOCK
     else if (apiType === "avatar") {
-       if (!voiceId || !avatarId) 
-       {
-      return res.status(400).json({ error: "Voice ID and Avatar ID are required." });
+      if (!voiceId || !avatarId) {
+        context.res = {
+          status: 400,
+          body: { error: "Voice ID and Avatar ID are required." }
+        };
+        return;
       }
-      
 
       status.setStatus("📤 Submitting avatar generation job...");
 
-      // 🛰️ Step 1: Submit Avatar job
       const avatarRes = await fetch("https://audio-video-api.adobe.io/v1/generate-avatar", {
         method: "POST",
         headers: {
@@ -180,12 +177,8 @@ module.exports = async function (context, req) {
             localeCode: "en-US",
             mediaType: "text/plain"
           },
-         voice: {
-          voiceId: voiceId
-        },
-        avatar: {
-          avatarId: avatarId
-        },
+          voice: { voiceId },
+          avatar: { avatarId },
           output: { mediaType: "video/mp4" }
         })
       });
@@ -193,11 +186,8 @@ module.exports = async function (context, req) {
       const avatarData = await avatarRes.json();
       context.log("🎭 Avatar job response:", avatarData);
 
-      const jobId = avatarData?.jobId;
-      const statusUrl = `https://firefly-epo855230.adobe.io/v3/status/${jobId}`;
-
-      if (!jobId) {
-        status.setStatus("❌ Avatar jobId missing.");
+      if (!avatarRes.ok) {
+        status.setStatus("❌ Avatar job submission failed.");
         context.res = {
           status: 500,
           body: { error: "Failed to start avatar generation job", details: avatarData }
@@ -205,12 +195,25 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // ⏳ Step 2: Poll job status
+      const jobId = avatarData?.jobId;
+      if (!jobId) {
+        status.setStatus("❌ Avatar jobId missing.");
+        context.res = {
+          status: 500,
+          body: { error: "Avatar jobId missing in response", details: avatarData }
+        };
+        return;
+      }
+
+      const statusUrl = `https://audio-video-api.adobe.io/v1/avatar/status/${jobId}`;
+
+      // Poll for status
       status.setStatus("⏳ Generating avatar video...");
       let pollResult;
       let attempts = 0;
       const maxAttempts = 50;
       const delay = 5000;
+
       while (attempts < maxAttempts) {
         const statusRes = await fetch(statusUrl, {
           headers: {
@@ -223,14 +226,14 @@ module.exports = async function (context, req) {
         context.log(`⌛ Avatar Poll ${attempts + 1}:`, statusData.status);
 
         if (statusData.status === "succeeded") {
-          pollResult = statusData;
           status.setStatus("✅ Avatar generated!");
+          pollResult = statusData;
           break;
         }
 
         if (statusData.status === "failed") {
-          pollResult = statusData;
           status.setStatus("❌ Avatar generation failed.");
+          pollResult = statusData;
           break;
         }
 
@@ -249,7 +252,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // ✅ Step 3: Return Avatar Video
       const videoUrl = pollResult?.result?.outputs?.[0]?.video?.url;
       context.res = {
         status: 200,
@@ -260,9 +262,9 @@ module.exports = async function (context, req) {
           videoUrl
         }
       };
-      return; // <-- Added return here to stop after avatar block
+      return;
     }
-    
+
     // 🎞️ VIDEO GENERATION BLOCK
     else if (apiType === "video") {
       status.setStatus("📤 Submitting video generation job...");
@@ -277,7 +279,7 @@ module.exports = async function (context, req) {
         body: JSON.stringify({
           bitRateFactor: 18,
           image: { conditions: [] },
-          prompt: userPrompt,
+          prompt,
           seeds: [1842533538],
           sizes: [{ height, width }],
           videoSettings: {
@@ -303,7 +305,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // ⏳ Step 3: Poll job status
       status.setStatus("⏳ Generating video...");
       let pollResult;
       let attempts = 0;
@@ -348,7 +349,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // ✅ Step 4: Return final video URL
       const videoUrl = pollResult.result.outputs?.[0]?.video?.url;
       context.res = {
         status: 200,
@@ -358,13 +358,13 @@ module.exports = async function (context, req) {
         body: {
           message: "✅ Video generated successfully!",
           jobId: pollResult.jobId,
-          videoUrl: videoUrl
+          videoUrl
         }
       };
-      return; // <-- Added return here to stop after video block
+      return;
     }
 
-    // Optional: If apiType is invalid or not handled
+    // Invalid API type
     context.res = {
       status: 400,
       body: { error: `Invalid apiType: ${apiType}` }
