@@ -177,8 +177,8 @@ module.exports = async function (context, req) {
             localeCode: "en-US",
             mediaType: "text/plain"
           },
-          voice: { voiceId },
-          avatar: { avatarId },
+          voiceId: voiceId,
+          avatarId: avatarId,
           output: { mediaType: "video/mp4" }
         })
       });
